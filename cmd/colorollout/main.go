@@ -24,6 +24,8 @@ func main() {
 		run(os.Args[2:])
 	case "backtest":
 		backtest(os.Args[2:])
+	case "queries":
+		queries(os.Args[2:])
 	default:
 		usage()
 	}
@@ -33,6 +35,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "usage: colorollout validate [flags] PLAN...")
 	fmt.Fprintln(os.Stderr, "       colorollout run [flags] PLAN")
 	fmt.Fprintln(os.Stderr, "       colorollout backtest [flags] PLAN...")
+	fmt.Fprintln(os.Stderr, "       colorollout queries [flags]")
 	os.Exit(2)
 }
 
@@ -201,4 +204,24 @@ func backtest(args []string) {
 		fmt.Printf("%-14s %-26s %3d/%-3d %9s %10.0f %7.1f%%\n",
 			o.Plan, o.Incident, o.Caught, o.Runs, detect, o.Extra, 100*o.Peak)
 	}
+}
+
+func queries(args []string) {
+	fs := flag.NewFlagSet("queries", flag.ExitOnError)
+	batch := fs.Int("batch", 2000, "health queries in one batch")
+	capacity := fs.Int("capacity", 40, "queries the backend serves per tick")
+	oncall := fs.Int("oncall", 5, "mean on-call queries per tick")
+	minLimit := fs.Float64("min", 4, "floor for the adaptive limit")
+	maxLimit := fs.Float64("max", 200, "ceiling for the adaptive limit")
+	seed := fs.Uint64("seed", 1, "random seed")
+	fs.Parse(args)
+	fmt.Printf("%-12s %6s %15s %16s\n", "", "ticks", "batch failures", "on-call failing")
+	show := func(name string, r colorollout.BackendRun) {
+		fmt.Printf("%-12s %6d %15d %15.1f%%\n", name, r.Ticks, r.BatchFailures,
+			100*float64(r.InteractiveFailures)/float64(max(1, r.Interactive)))
+	}
+	show("all at once", colorollout.RunBackend(*batch, *capacity, *oncall, nil, *seed))
+	fixed := colorollout.NewQueryLimit(float64(*capacity), float64(*capacity))
+	show("fixed limit", colorollout.RunBackend(*batch, *capacity, *oncall, fixed, *seed))
+	show("adaptive", colorollout.RunBackend(*batch, *capacity, *oncall, colorollout.NewQueryLimit(*minLimit, *maxLimit), *seed))
 }
