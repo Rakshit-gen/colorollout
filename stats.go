@@ -4,8 +4,8 @@ import "math"
 
 // Counts is requests and failures seen on one version in some window.
 type Counts struct {
-	Requests int64
-	Failures int64
+	Requests int64 `json:"requests"`
+	Failures int64 `json:"failures"`
 }
 
 // Add returns the sum of two counts.

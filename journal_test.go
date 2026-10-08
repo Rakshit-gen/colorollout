@@ -120,3 +120,17 @@ func TestBaselineSurvivesResume(t *testing.T) {
 		t.Fatalf("baseline after resume: %+v", got)
 	}
 }
+
+func TestBaselineJournalFormat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "j")
+	j, _, _ := OpenJournal(path)
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1}, 1, 1))
+	r.Journal = j
+	r.SetBaseline(0, map[string]Counts{"5xx": {100, 1}})
+	j.Close()
+	b, _ := os.ReadFile(path)
+	want := `{"at":0,"stage":-1,"kind":"baseline","what":"{\"5xx\":{\"requests\":100,\"failures\":1}}"}` + "\n"
+	if string(b) != want {
+		t.Fatalf("journal line:\n%s\nwant\n%s", b, want)
+	}
+}
