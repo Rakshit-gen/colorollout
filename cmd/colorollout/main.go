@@ -22,6 +22,8 @@ func main() {
 		validate(os.Args[2:])
 	case "run":
 		run(os.Args[2:])
+	case "backtest":
+		backtest(os.Args[2:])
 	default:
 		usage()
 	}
@@ -30,6 +32,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: colorollout validate [flags] PLAN...")
 	fmt.Fprintln(os.Stderr, "       colorollout run [flags] PLAN")
+	fmt.Fprintln(os.Stderr, "       colorollout backtest [flags] PLAN...")
 	os.Exit(2)
 }
 
@@ -145,4 +148,29 @@ func baseRatios(p colorollout.Plan, ratio float64) map[string]float64 {
 		m[s.Name] = ratio
 	}
 	return m
+}
+
+func backtest(args []string) {
+	fs := flag.NewFlagSet("backtest", flag.ExitOnError)
+	fleet := fleetFlags(fs)
+	seeds := fs.Int("seeds", 20, "runs per plan and incident")
+	base := fs.Float64("base", 0.0003, "the old version's failure ratio")
+	fs.Parse(args)
+	if fs.NArg() == 0 {
+		usage()
+	}
+	var plans []colorollout.Plan
+	for _, path := range fs.Args() {
+		plans = append(plans, loadPlan(path))
+	}
+	f := fleet()
+	fmt.Printf("%-14s %-26s %7s %9s %10s %8s\n", "plan", "release", "caught", "detect", "extra", "reached")
+	for _, o := range colorollout.Backtest(plans, colorollout.Incidents, f, baseRatios(plans[0], *base), *seeds) {
+		detect := "-"
+		if o.Caught > 0 {
+			detect = o.Detect.Round(time.Second).String()
+		}
+		fmt.Printf("%-14s %-26s %3d/%-3d %9s %10.0f %7.1f%%\n",
+			o.Plan, o.Incident, o.Caught, o.Runs, detect, o.Extra, 100*o.Peak)
+	}
 }
