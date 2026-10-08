@@ -54,6 +54,17 @@ func (q *QueryLimit) Acquire(ctx context.Context) error {
 	}
 }
 
+// TryAcquire takes room for one batch query if there is any.
+func (q *QueryLimit) TryAcquire() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if float64(q.inflight) < q.limit {
+		q.inflight++
+		return true
+	}
+	return false
+}
+
 // Release ends a query and adjusts the cap by how it went.
 func (q *QueryLimit) Release(ok bool) {
 	q.mu.Lock()
