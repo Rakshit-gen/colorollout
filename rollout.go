@@ -21,13 +21,14 @@ func (s State) String() string {
 
 // Event is one line of a rollout's history.
 type Event struct {
-	At    time.Duration
-	Stage int
-	What  string
+	At    time.Duration `json:"at"`
+	Stage int           `json:"stage"`
+	Kind  string        `json:"kind"` // deploy, healthy, revert, halt or done
+	What  string        `json:"what"`
 }
 
 func (e Event) String() string {
-	return fmt.Sprintf("%8v  stage %d  %s", e.At.Round(time.Second), e.Stage+1, e.What)
+	return fmt.Sprintf("%8v  stage %d  %-7s  %s", e.At.Round(time.Second), e.Stage+1, e.Kind, e.What)
 }
 
 // Rollout runs a plan. It doesn't touch servers itself: Next tells the
@@ -62,8 +63,8 @@ func NewRollout(p Plan, g Gate, f *Fleet) *Rollout {
 	return &Rollout{Plan: p, Gate: g, Fleet: f, Stage: -1}
 }
 
-func (r *Rollout) log(at time.Duration, format string, args ...any) {
-	r.Events = append(r.Events, Event{at, r.Stage, fmt.Sprintf(format, args...)})
+func (r *Rollout) log(at time.Duration, kind, format string, args ...any) {
+	r.Events = append(r.Events, Event{at, r.Stage, kind, fmt.Sprintf(format, args...)})
 }
 
 func (r *Rollout) page() {
@@ -81,7 +82,7 @@ func (r *Rollout) Next(now time.Duration) ([]*Server, float64) {
 	r.recent = r.recent[:0]
 	st := r.Plan.Stages[r.Stage]
 	servers := r.Fleet.In(st.Scope)
-	r.log(now, "deploy to %s (%d servers), soak %v", st.Scope, len(servers), st.Soak)
+	r.log(now, "deploy", "deploy to %s (%d servers), soak %v", st.Scope, len(servers), st.Soak)
 	return servers, st.Scope.Share()
 }
 
@@ -98,19 +99,19 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	switch {
 	case v.Decision == Revert:
 		r.State = RolledBack
-		r.log(now, "revert: %s", v.Reason)
+		r.log(now, "revert", "%s", v.Reason)
 		r.page()
 		return Revert
 	case v.Decision == Continue && elapsed >= r.Plan.Stages[r.Stage].Soak:
-		r.log(now, "healthy after %v", elapsed)
+		r.log(now, "healthy", "healthy after %v", elapsed)
 		if r.Stage == len(r.Plan.Stages)-1 {
 			r.State = Done
-			r.log(now, "done")
+			r.log(now, "done", "every stage passed")
 		}
 		return Continue
 	case v.Decision == Wait && r.Plan.MaxWait > 0 && elapsed >= r.Plan.MaxWait:
 		r.State = Halted
-		r.log(now, "halt: %s after %v; needs a person", v.Reason, elapsed)
+		r.log(now, "halt", "%s after %v; needs a person", v.Reason, elapsed)
 		r.page()
 	}
 	return Wait

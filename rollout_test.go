@@ -1,7 +1,6 @@
 package colorollout
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -119,7 +118,7 @@ func TestPageOnRevertOnly(t *testing.T) {
 	}
 	r.Next(10 * time.Minute)
 	r.Observe(11*time.Minute, Sample{New: map[string]Counts{"5xx": {20000, 400}}, Old: ok.Old})
-	if len(pages) != 1 || !strings.HasPrefix(pages[0].What, "revert") {
+	if len(pages) != 1 || pages[0].Kind != "revert" {
 		t.Fatalf("pages: %v", pages)
 	}
 }
