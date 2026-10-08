@@ -37,3 +37,19 @@ func (b Raise) Ratio(slo string, s *Server, base float64, _ time.Duration) float
 func (b Raise) String() string {
 	return fmt.Sprintf("%s x%g %s", b.SLO, b.Factor, b.Where)
 }
+
+// Crash makes the new version fail a share of every request on matching
+// servers, for every SLO: a process that keeps restarting.
+type Crash struct {
+	Share float64
+	Where Scope
+}
+
+func (b Crash) Ratio(_ string, s *Server, base float64, _ time.Duration) float64 {
+	if !b.Where.Match(s) {
+		return base
+	}
+	return base + (1-base)*b.Share
+}
+
+func (b Crash) String() string { return fmt.Sprintf("crash %g%% %s", 100*b.Share, b.Where) }

@@ -22,3 +22,16 @@ func TestRaise(t *testing.T) {
 		t.Fatal("ratio not capped at 1")
 	}
 }
+
+func TestCrashHitsEverySLO(t *testing.T) {
+	f := NewFleet([]int{1}, 1, 1)
+	b := Crash{Share: 0.5}
+	for _, slo := range []string{"5xx", "timeouts"} {
+		if got := b.Ratio(slo, f.Servers[0], 0, 0); got != 0.5 {
+			t.Fatalf("%s: %v", slo, got)
+		}
+	}
+	if got := b.Ratio("5xx", f.Servers[0], 0.1, 0); got != 0.55 {
+		t.Fatalf("on top of a base ratio: %v", got)
+	}
+}
