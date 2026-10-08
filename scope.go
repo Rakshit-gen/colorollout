@@ -86,8 +86,25 @@ func ParseScope(s string) (Scope, error) {
 	return sc, nil
 }
 
-// In returns the servers in f that the scope matches.
+// In returns the servers in f that the scope matches, in fleet order.
+// Scopes that only name tiers and colors, which is most stages, are read
+// from the release scope index instead of scanning every server.
 func (f *Fleet) In(sc Scope) []*Server {
+	if len(sc.Tiers) > 0 && len(sc.Regions) == 0 && len(sc.DCs) == 0 {
+		idx := f.releaseScopes()
+		colors := sc.Colors
+		if len(colors) == 0 {
+			colors = Colors
+		}
+		var out []*Server
+		for _, t := range sc.Tiers {
+			for _, c := range colors {
+				out = append(out, idx[tierColor{t, c}]...)
+			}
+		}
+		slices.SortFunc(out, func(a, b *Server) int { return a.ID - b.ID })
+		return slices.Compact(out) // "tier=3,3" names a tier twice
+	}
 	var out []*Server
 	for _, s := range f.Servers {
 		if sc.Match(s) {
@@ -95,4 +112,23 @@ func (f *Fleet) In(sc Scope) []*Server {
 		}
 	}
 	return out
+}
+
+type tierColor struct {
+	tier  int
+	color string
+}
+
+// releaseScopes groups servers by tier and color once, the way HMD
+// precomputes hmd:release_scopes:info with a Prometheus recording rule
+// instead of joining server and data center metadata on every query.
+func (f *Fleet) releaseScopes() map[tierColor][]*Server {
+	f.once.Do(func() {
+		f.index = map[tierColor][]*Server{}
+		for _, s := range f.Servers {
+			k := tierColor{s.DC.Tier, s.Color}
+			f.index[k] = append(f.index[k], s)
+		}
+	})
+	return f.index
 }

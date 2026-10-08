@@ -1,6 +1,9 @@
 package colorollout
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestParseScope(t *testing.T) {
 	sc, err := ParseScope("tier=3 color=green,blue")
@@ -31,5 +34,40 @@ func TestParseScopeErrors(t *testing.T) {
 		if _, err := ParseScope(s); err == nil {
 			t.Errorf("%q accepted", s)
 		}
+	}
+}
+
+func TestIndexMatchesScan(t *testing.T) {
+	f := NewFleet([]int{3, 5, 9}, 7, 4)
+	for _, s := range []string{"tier=1", "tier=3 color=green", "tier=2,3 color=red,blue", "tier=3,1", "tier=2,2 color=red,red"} {
+		sc, err := ParseScope(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []*Server
+		for _, srv := range f.Servers {
+			if sc.Match(srv) {
+				want = append(want, srv)
+			}
+		}
+		if got := f.In(sc); !slices.Equal(got, want) {
+			t.Errorf("%s: index gave %d servers, scan %d", s, len(got), len(want))
+		}
+	}
+}
+
+func BenchmarkInTierColor(b *testing.B) {
+	f := NewFleet([]int{20, 60, 250}, 40, 1)
+	sc := Scope{Tiers: []int{3}, Colors: []string{"green"}}
+	for b.Loop() {
+		f.In(sc)
+	}
+}
+
+func BenchmarkInScan(b *testing.B) {
+	f := NewFleet([]int{20, 60, 250}, 40, 1)
+	sc := Scope{Regions: []string{"eu"}, Colors: []string{"green"}}
+	for b.Loop() {
+		f.In(sc)
 	}
 }

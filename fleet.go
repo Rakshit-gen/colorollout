@@ -9,6 +9,7 @@ package colorollout
 import (
 	"fmt"
 	"math/rand/v2"
+	"sync"
 )
 
 // Colors split the servers inside every data center into groups that can
@@ -35,6 +36,9 @@ type Server struct {
 type Fleet struct {
 	DCs     []*DataCenter
 	Servers []*Server
+
+	once  sync.Once
+	index map[tierColor][]*Server
 }
 
 // Regions the generated fleet spreads over.
