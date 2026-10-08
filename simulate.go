@@ -8,7 +8,7 @@ type Result struct {
 	Took     time.Duration
 	Extra    float64 // failed requests the release caused
 	Peak     float64 // largest share of requests on the new version in a step
-	Revealed int     // stage where it was reverted or halted, -1 if done
+	Revealed int     // stage where it was reverted or halted, else -1
 	Events   []Event
 }
 
@@ -57,7 +57,7 @@ func Drive(r *Rollout, w *World, dt, limit time.Duration) Result {
 			}
 		}
 	}
-	if r.State != Done {
+	if r.State == RolledBack || r.State == Halted {
 		res.Revealed = r.Stage
 	}
 	res.State, res.Took, res.Extra, res.Events = r.State, w.Now()-start, w.Extra, r.Events

@@ -29,7 +29,7 @@ var Incidents = []Incident{
 type Outcome struct {
 	Plan, Incident string
 	Runs           int
-	Caught         int           // runs that reverted or halted
+	Caught         int           // runs that reverted or halted, not ones cut off by the time limit
 	Detect         time.Duration // mean time to revert, over caught runs
 	Extra          float64       // mean failed requests caused
 	Peak           float64       // mean largest share of traffic that got the change
@@ -47,7 +47,7 @@ func Backtest(plans []Plan, incidents []Incident, f *Fleet, base map[string]floa
 			for seed := range seeds {
 				w := NewWorld(f, base, inc.Bug, uint64(seed+1))
 				res := Simulate(p, DefaultGate, w, time.Minute, 48*time.Hour)
-				if res.State != Done {
+				if res.State == RolledBack || res.State == Halted {
 					o.Caught++
 					o.Detect += res.Took
 				}

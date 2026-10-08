@@ -52,3 +52,11 @@ func TestDriveResumed(t *testing.T) {
 		t.Fatalf("resumed run took %v", res.Took)
 	}
 }
+
+func TestCutOffIsNotCaught(t *testing.T) {
+	f := NewFleet([]int{1, 1, 2}, 3, 1)
+	res := Simulate(testPlan(t), DefaultGate, NewWorld(f, base, nil, 1), time.Minute, 5*time.Minute)
+	if res.State != Running || res.Revealed != -1 {
+		t.Fatalf("cut off run: %v, revealed %d", res.State, res.Revealed)
+	}
+}
