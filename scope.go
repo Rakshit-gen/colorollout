@@ -14,6 +14,29 @@ type Scope struct {
 	Colors  []string
 	Regions []string
 	DCs     []string // single data centers by name, for a first canary
+	// Traffic is which requests on those servers get the new version:
+	// "employees", "free", a percentage like "10%", or "" for all of them.
+	Traffic string
+}
+
+// Made-up shares of traffic for the population steps. Cloudflare goes to
+// employee traffic first, then to growing percentages of customers starting
+// with free users; these numbers only exist to make the simulation run.
+var populations = map[string]float64{
+	"employees": 0.002,
+	"free":      0.25, // includes employees
+}
+
+// Share is the fraction of a matched server's requests the scope covers.
+func (sc Scope) Share() float64 {
+	if sc.Traffic == "" {
+		return 1
+	}
+	if p, ok := populations[sc.Traffic]; ok {
+		return p
+	}
+	pct, _ := strconv.ParseFloat(strings.TrimSuffix(sc.Traffic, "%"), 64)
+	return pct / 100
 }
 
 // Match reports whether s is in the scope.
@@ -39,6 +62,9 @@ func (sc Scope) String() string {
 	add("tier", tiers)
 	add("color", sc.Colors)
 	add("region", sc.Regions)
+	if sc.Traffic != "" {
+		parts = append(parts, "traffic="+sc.Traffic)
+	}
 	if len(parts) == 0 {
 		return "everywhere"
 	}
@@ -79,6 +105,16 @@ func ParseScope(s string) (Scope, error) {
 			sc.Regions = vals
 		case "dc":
 			sc.DCs = vals
+		case "traffic":
+			if _, ok := populations[v]; !ok {
+				pct, err := strconv.ParseFloat(strings.TrimSuffix(v, "%"), 64)
+				if !strings.HasSuffix(v, "%") || err != nil || pct <= 0 || pct > 100 {
+					return sc, fmt.Errorf("scope %q: traffic must be employees, free or a percentage, got %q", s, v)
+				}
+			}
+			if v != "100%" {
+				sc.Traffic = v
+			}
 		default:
 			return sc, fmt.Errorf("scope %q: unknown key %q", s, k)
 		}

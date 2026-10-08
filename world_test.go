@@ -20,7 +20,7 @@ func TestWorldSplitsTrafficByVersion(t *testing.T) {
 		t.Fatalf("requests %v, want about %v", got, total)
 	}
 
-	w.Deploy(f.In(Scope{Tiers: []int{2}}))
+	w.Deploy(f.In(Scope{Tiers: []int{2}}), 1)
 	var newC, oldC Counts
 	for i := 0; i < 60; i++ {
 		smp = w.Step(time.Minute)
@@ -39,5 +39,21 @@ func TestWorldSplitsTrafficByVersion(t *testing.T) {
 	w.Revert()
 	if w.OnNew() != 0 || w.Step(time.Minute).New["5xx"].Requests != 0 {
 		t.Fatal("revert left servers on the new version")
+	}
+}
+
+func TestWorldPartialTraffic(t *testing.T) {
+	f := NewFleet([]int{2}, 6, 1)
+	w := NewWorld(f, map[string]float64{"5xx": 0.001}, nil, 1)
+	w.Deploy(f.Servers, 0.1)
+	w.Deploy(f.Servers[:1], 0.05) // smaller share doesn't shrink it
+	var n, o int64
+	for i := 0; i < 30; i++ {
+		smp := w.Step(time.Minute)
+		n += smp.New["5xx"].Requests
+		o += smp.Old["5xx"].Requests
+	}
+	if share := float64(n) / float64(n+o); share < 0.095 || share > 0.105 {
+		t.Fatalf("new version got %.3f of traffic, want 0.1", share)
 	}
 }

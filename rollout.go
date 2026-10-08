@@ -62,8 +62,9 @@ func (r *Rollout) log(at time.Duration, format string, args ...any) {
 	r.Events = append(r.Events, Event{at, r.Stage, fmt.Sprintf(format, args...)})
 }
 
-// Next moves to the next stage and returns the servers it adds.
-func (r *Rollout) Next(now time.Duration) []*Server {
+// Next moves to the next stage and returns the servers it covers and the
+// share of their traffic that should get the new version.
+func (r *Rollout) Next(now time.Duration) ([]*Server, float64) {
 	r.Stage++
 	r.StageStart = now
 	r.Canary, r.Control = map[string]Counts{}, map[string]Counts{}
@@ -71,7 +72,7 @@ func (r *Rollout) Next(now time.Duration) []*Server {
 	st := r.Plan.Stages[r.Stage]
 	servers := r.Fleet.In(st.Scope)
 	r.log(now, "deploy to %s (%d servers), soak %v", st.Scope, len(servers), st.Soak)
-	return servers
+	return servers, st.Scope.Share()
 }
 
 // Observe adds traffic seen up to now and returns what the gate decided.

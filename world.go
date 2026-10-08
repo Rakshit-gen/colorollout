@@ -15,7 +15,7 @@ type World struct {
 
 	rng   *rand.Rand
 	now   time.Duration
-	since map[int]time.Duration // server ID -> when it got the new version
+	since map[int]deployment // server ID -> its share of the new version
 
 	// Extra is failed requests caused by the release so far: failures on the
 	// new version beyond what the old version would have had. It's the
@@ -28,18 +28,27 @@ func NewWorld(f *Fleet, base map[string]float64, bug Bug, seed uint64) *World {
 	if bug == nil {
 		bug = NoBug{}
 	}
-	return &World{Fleet: f, Base: base, Bug: bug, rng: rand.New(rand.NewPCG(seed, 11)), since: map[int]time.Duration{}}
+	return &World{Fleet: f, Base: base, Bug: bug, rng: rand.New(rand.NewPCG(seed, 11)), since: map[int]deployment{}}
+}
+
+type deployment struct {
+	at    time.Duration // when the server first got the new version
+	share float64       // fraction of its requests on the new version
 }
 
 // Now is simulated time since the start.
 func (w *World) Now() time.Duration { return w.now }
 
-// Deploy puts the new version on servers that don't have it yet.
-func (w *World) Deploy(servers []*Server) {
+// Deploy sends share of each server's requests to the new version. A
+// server already on a bigger share keeps it.
+func (w *World) Deploy(servers []*Server, share float64) {
 	for _, s := range servers {
-		if _, ok := w.since[s.ID]; !ok {
-			w.since[s.ID] = w.now
+		d, ok := w.since[s.ID]
+		if !ok {
+			d.at = w.now
 		}
+		d.share = max(d.share, share)
+		w.since[s.ID] = d
 	}
 }
 
@@ -58,19 +67,18 @@ type Sample struct {
 func (w *World) Step(dt time.Duration) Sample {
 	out := Sample{New: map[string]Counts{}, Old: map[string]Counts{}}
 	for _, s := range w.Fleet.Servers {
-		n := poisson(w.rng, s.Load*dt.Seconds())
-		start, isNew := w.since[s.ID]
+		d := w.since[s.ID]
+		mean := s.Load * dt.Seconds()
+		nNew := poisson(w.rng, mean*d.share)
+		nOld := poisson(w.rng, mean*(1-d.share))
 		for slo, base := range w.Base {
-			ratio := base
-			if isNew {
-				ratio = w.Bug.Ratio(slo, s, base, w.now-start)
-				w.Extra += float64(n) * (ratio - base)
+			if nOld > 0 {
+				out.Old[slo] = out.Old[slo].Add(Counts{nOld, poisson(w.rng, float64(nOld)*base)})
 			}
-			c := Counts{n, poisson(w.rng, float64(n)*ratio)}
-			if isNew {
-				out.New[slo] = out.New[slo].Add(c)
-			} else {
-				out.Old[slo] = out.Old[slo].Add(c)
+			if nNew > 0 {
+				ratio := w.Bug.Ratio(slo, s, base, w.now-d.at)
+				w.Extra += float64(nNew) * (ratio - base)
+				out.New[slo] = out.New[slo].Add(Counts{nNew, poisson(w.rng, float64(nNew)*ratio)})
 			}
 		}
 	}

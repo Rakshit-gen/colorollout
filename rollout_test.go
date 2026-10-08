@@ -25,8 +25,8 @@ func testPlan(t *testing.T) Plan {
 func TestRolloutStateMachine(t *testing.T) {
 	f := NewFleet([]int{2, 2, 4}, 6, 1)
 	r := NewRollout(testPlan(t), DefaultGate, f)
-	if n := len(r.Next(0)); n != 8 {
-		t.Fatalf("first stage %d servers, want 8", n)
+	if s, _ := r.Next(0); len(s) != 8 {
+		t.Fatalf("first stage %d servers, want 8", len(s))
 	}
 	healthy := Sample{
 		New: map[string]Counts{"5xx": {20000, 10}},

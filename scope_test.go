@@ -71,3 +71,31 @@ func BenchmarkInScan(b *testing.B) {
 		f.In(sc)
 	}
 }
+
+func TestTrafficScopes(t *testing.T) {
+	for in, want := range map[string]float64{
+		"traffic=employees":   0.002,
+		"tier=3 traffic=free": 0.25,
+		"traffic=10%":         0.1,
+		"traffic=0.5%":        0.005,
+		"traffic=100%":        1,
+		"everywhere":          1,
+		"tier=1 color=red":    1,
+	} {
+		sc, err := ParseScope(in)
+		if err != nil {
+			t.Fatalf("%s: %v", in, err)
+		}
+		if sc.Share() != want {
+			t.Errorf("%s: share %v, want %v", in, sc.Share(), want)
+		}
+	}
+	if sc, _ := ParseScope("traffic=100%"); sc.String() != "everywhere" {
+		t.Errorf("100%% of traffic everywhere prints as %q", sc)
+	}
+	for _, bad := range []string{"traffic=paid", "traffic=0%", "traffic=150%", "traffic=10"} {
+		if _, err := ParseScope(bad); err == nil {
+			t.Errorf("%s accepted", bad)
+		}
+	}
+}
