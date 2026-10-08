@@ -68,3 +68,37 @@ func TestResumeAfterRevertStaysReverted(t *testing.T) {
 		t.Fatalf("state %v", r.State)
 	}
 }
+
+func TestCoveredAfterResume(t *testing.T) {
+	f := NewFleet([]int{1, 1, 2}, 3, 1)
+	events := []Event{{0, 0, "deploy", ""}, {time.Minute, 0, "healthy", ""}, {time.Minute, 1, "deploy", ""}}
+	r := Resume(testPlan(t), DefaultGate, f, events, time.Hour)
+	c := r.Covered()
+	if len(c) != 6 { // stage 2 is all of tier 3: 2 DCs of 3 servers
+		t.Fatalf("covered %d servers, want 6", len(c))
+	}
+	for s, share := range c {
+		if s.DC.Tier != 3 || share != 1 {
+			t.Fatalf("covered %v at %v", s.DC.Name, share)
+		}
+	}
+	r = Resume(testPlan(t), DefaultGate, f, append(events, Event{2 * time.Minute, 1, "revert", ""}), time.Hour)
+	if len(r.Covered()) != 0 {
+		t.Fatal("reverted rollout still covers servers")
+	}
+}
+
+func TestJournalWriteFailureHalts(t *testing.T) {
+	j, _, err := OpenJournal(filepath.Join(t.TempDir(), "j"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.Close() // every write now fails
+	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Journal = j
+	paged := false
+	r.Page = func(Event) { paged = true }
+	if servers, _ := r.Next(0); servers != nil || r.State != Halted || !paged {
+		t.Fatalf("deployed %d servers without a journal, state %v", len(servers), r.State)
+	}
+}

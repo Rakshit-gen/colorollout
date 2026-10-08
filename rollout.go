@@ -156,3 +156,21 @@ func (r *Rollout) window(now time.Duration, smp Sample) {
 		}
 	}
 }
+
+// Covered is what the fleet should look like right now: each server that
+// should run the new version, with its share of traffic. After a crash this
+// is what a resumed rollout checks the fleet against. A reverted rollout
+// covers nothing; a halted one keeps what it had until a person decides.
+func (r *Rollout) Covered() map[*Server]float64 {
+	out := map[*Server]float64{}
+	if r.State == RolledBack {
+		return out
+	}
+	for i := 0; i <= r.Stage && i < len(r.Plan.Stages); i++ {
+		sc := r.Plan.Stages[i].Scope
+		for _, s := range r.Fleet.In(sc) {
+			out[s] = max(out[s], sc.Share())
+		}
+	}
+	return out
+}
