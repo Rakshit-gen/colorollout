@@ -53,3 +53,25 @@ func (b Crash) Ratio(_ string, s *Server, base float64, _ time.Duration) float64
 }
 
 func (b Crash) String() string { return fmt.Sprintf("crash %g%% %s", 100*b.Share, b.Where) }
+
+// SlowBurn is fine at first and gets worse the longer the new version runs,
+// like a leak: after Delay the ratio climbs by Factor-1 times the base each
+// Ramp. Short soaks miss it.
+type SlowBurn struct {
+	SLO    string
+	Delay  time.Duration
+	Ramp   time.Duration
+	Factor float64 // ceiling multiplier
+}
+
+func (b SlowBurn) Ratio(slo string, _ *Server, base float64, running time.Duration) float64 {
+	if slo != b.SLO || running <= b.Delay {
+		return base
+	}
+	k := 1 + float64(running-b.Delay)/float64(b.Ramp)
+	return min(1, base*min(k, b.Factor))
+}
+
+func (b SlowBurn) String() string {
+	return fmt.Sprintf("%s slow burn after %v, up to x%g", b.SLO, b.Delay, b.Factor)
+}

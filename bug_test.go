@@ -1,6 +1,9 @@
 package colorollout
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestRaise(t *testing.T) {
 	f := NewFleet([]int{1, 1}, 3, 1)
@@ -33,5 +36,18 @@ func TestCrashHitsEverySLO(t *testing.T) {
 	}
 	if got := b.Ratio("5xx", f.Servers[0], 0.1, 0); got != 0.55 {
 		t.Fatalf("on top of a base ratio: %v", got)
+	}
+}
+
+func TestSlowBurn(t *testing.T) {
+	b := SlowBurn{SLO: "5xx", Delay: 30 * time.Minute, Ramp: 10 * time.Minute, Factor: 8}
+	s := NewFleet([]int{1}, 1, 1).Servers[0]
+	for _, c := range []struct {
+		at   time.Duration
+		want float64
+	}{{0, 0.001}, {30 * time.Minute, 0.001}, {40 * time.Minute, 0.002}, {60 * time.Minute, 0.004}, {5 * time.Hour, 0.008}} {
+		if got := b.Ratio("5xx", s, 0.001, c.at); got < c.want*0.999 || got > c.want*1.001 {
+			t.Errorf("at %v: %v, want %v", c.at, got, c.want)
+		}
 	}
 }
