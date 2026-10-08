@@ -85,6 +85,10 @@ func Resume(p Plan, g Gate, f *Fleet, events []Event, now time.Duration) *Rollou
 	r.Events = append(r.Events, events...)
 	for _, e := range events {
 		switch e.Kind {
+		case "baseline":
+			if err := json.Unmarshal([]byte(e.What), &r.Baseline); err != nil {
+				r.Baseline = nil // compare with the control only
+			}
 		case "deploy":
 			r.Stage = e.Stage
 		case "revert":

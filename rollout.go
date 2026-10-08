@@ -1,6 +1,7 @@
 package colorollout
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -23,7 +24,7 @@ func (s State) String() string {
 type Event struct {
 	At    time.Duration `json:"at"`
 	Stage int           `json:"stage"`
-	Kind  string        `json:"kind"` // deploy, healthy, revert, halt, done or resume
+	Kind  string        `json:"kind"` // baseline, deploy, hold, healthy, revert, halt, done or resume
 	What  string        `json:"what"`
 }
 
@@ -225,4 +226,12 @@ func (r *Rollout) hasControl() bool {
 		}
 	}
 	return true
+}
+
+// SetBaseline records the old version's counts from before the release,
+// in the journal too, so a resumed rollout still has them.
+func (r *Rollout) SetBaseline(now time.Duration, b map[string]Counts) {
+	r.Baseline = b
+	js, _ := json.Marshal(b) // map of plain structs: can't fail
+	r.log(now, "baseline", "%s", js)
 }

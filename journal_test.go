@@ -102,3 +102,21 @@ func TestJournalWriteFailureHalts(t *testing.T) {
 		t.Fatalf("deployed %d servers without a journal, state %v", len(servers), r.State)
 	}
 }
+
+func TestBaselineSurvivesResume(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "j")
+	j, _, _ := OpenJournal(path)
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Journal = j
+	r.SetBaseline(0, map[string]Counts{"5xx": {3e6, 900}})
+	r.Next(0)
+	j.Close()
+	_, events, err := OpenJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = Resume(testPlan(t), testGate, r.Fleet, events, time.Hour)
+	if got := r.Baseline["5xx"]; got != (Counts{3e6, 900}) {
+		t.Fatalf("baseline after resume: %+v", got)
+	}
+}

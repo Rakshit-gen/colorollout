@@ -20,12 +20,13 @@ const Baseline = 30 * time.Minute
 // learn the old version's failure ratios. Took doesn't count that time.
 func Simulate(p Plan, g Gate, w *World, dt, limit time.Duration) Result {
 	r := NewRollout(p, g, w.Fleet)
-	r.Baseline = map[string]Counts{}
+	baseline := map[string]Counts{}
 	for w.Now() < Baseline {
 		for k, c := range w.Step(dt).Old {
-			r.Baseline[k] = r.Baseline[k].Add(c)
+			baseline[k] = baseline[k].Add(c)
 		}
 	}
+	r.SetBaseline(w.Now(), baseline)
 	start := w.Now()
 	limit += start
 	w.Deploy(r.Next(w.Now()))
