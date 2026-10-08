@@ -1,0 +1,14 @@
+{
+  "service": "config-push",
+  "max_wait": "20m",
+  "window": "5m",
+  "stages": [
+    {"name": "employees", "scope": "traffic=employees", "soak": "5m"},
+    {"name": "one color on small sites", "scope": "tier=3 color=green", "soak": "5m"},
+    {"name": "small sites", "scope": "tier=3", "soak": "5m"},
+    {"name": "everywhere", "scope": "everywhere", "soak": "10m"}
+  ],
+  "slos": [
+    {"name": "5xx", "objective": 0.001}
+  ]
+}

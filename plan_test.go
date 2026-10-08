@@ -2,6 +2,7 @@ package colorollout
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -72,5 +73,21 @@ func TestParsePlanWindow(t *testing.T) {
 	}
 	if _, err := ParsePlan([]byte(`{"service":"x","window":"-5m"}`)); err == nil {
 		t.Fatal("negative window accepted")
+	}
+}
+
+func TestExamplesParse(t *testing.T) {
+	paths, _ := filepath.Glob("examples/*.json")
+	if len(paths) < 5 {
+		t.Fatalf("found %d examples", len(paths))
+	}
+	f := NewFleet([]int{10, 20, 30}, 12, 1)
+	for _, path := range paths {
+		p := loadPlan(t, path)
+		for i, st := range p.Stages {
+			if len(f.In(st.Scope)) == 0 {
+				t.Errorf("%s stage %d matches nothing in the default fleet", path, i+1)
+			}
+		}
 	}
 }

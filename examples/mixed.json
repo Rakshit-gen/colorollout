@@ -1,0 +1,16 @@
+{
+  "service": "mixed",
+  "max_wait": "1h",
+  "window": "10m",
+  "stages": [
+    {"name": "employees on small sites", "scope": "tier=3 traffic=employees", "soak": "10m"},
+    {"name": "employees everywhere", "scope": "traffic=employees", "soak": "10m"},
+    {"name": "free users on small sites", "scope": "tier=3 traffic=free", "soak": "20m"},
+    {"name": "free users everywhere", "scope": "traffic=free", "soak": "20m"},
+    {"name": "everyone on small sites", "scope": "tier=3", "soak": "20m"},
+    {"name": "everyone", "scope": "everywhere", "soak": "30m"}
+  ],
+  "slos": [
+    {"name": "5xx", "objective": 0.001}
+  ]
+}
