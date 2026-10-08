@@ -28,8 +28,10 @@ type Gate struct {
 	Confirm int
 }
 
-// DefaultGate needs a thousand requests and three standard errors.
-var DefaultGate = Gate{MinRequests: 1000, Z: 3, Confirm: 1}
+// DefaultGate needs a thousand requests, four standard errors, and two
+// checks in a row. At three standard errors and one check, the backtest
+// reverted 36 of 600 good releases; at these settings it reverted none.
+var DefaultGate = Gate{MinRequests: 1000, Z: 4, Confirm: 2}
 
 // Verdict is a decision with the reason behind it.
 type Verdict struct {

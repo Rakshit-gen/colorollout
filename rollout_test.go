@@ -24,7 +24,7 @@ func testPlan(t *testing.T) Plan {
 
 func TestRolloutStateMachine(t *testing.T) {
 	f := NewFleet([]int{2, 2, 4}, 6, 1)
-	r := NewRollout(testPlan(t), DefaultGate, f)
+	r := NewRollout(testPlan(t), testGate, f)
 	if s, _ := r.Next(0); len(s) != 8 {
 		t.Fatalf("first stage %d servers, want 8", len(s))
 	}
@@ -52,7 +52,7 @@ func TestRolloutStateMachine(t *testing.T) {
 }
 
 func TestRolloutHaltsWithoutTraffic(t *testing.T) {
-	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
 	r.Next(0)
 	quiet := Sample{New: map[string]Counts{"5xx": {10, 0}}, Old: map[string]Counts{"5xx": {1000, 1}}}
 	r.Observe(59*time.Minute, quiet)
@@ -66,7 +66,7 @@ func TestRolloutHaltsWithoutTraffic(t *testing.T) {
 }
 
 func TestRolloutFinishes(t *testing.T) {
-	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
 	ok := Sample{New: map[string]Counts{"5xx": {20000, 10}}, Old: map[string]Counts{"5xx": {20000, 10}}}
 	now := time.Duration(0)
 	for i := range r.Plan.Stages {
@@ -85,7 +85,7 @@ func TestWindowForgetsOldTraffic(t *testing.T) {
 	p := testPlan(t)
 	p.Window = 10 * time.Minute
 	p.Stages[0].Soak = 2 * time.Hour
-	r := NewRollout(p, DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r := NewRollout(p, testGate, NewFleet([]int{1, 1, 1}, 3, 1))
 	r.Next(0)
 	ok := Sample{New: map[string]Counts{"5xx": {10000, 3}}, Old: map[string]Counts{"5xx": {10000, 3}}}
 	for m := 1; m <= 90; m++ {
@@ -107,7 +107,7 @@ func TestWindowForgetsOldTraffic(t *testing.T) {
 }
 
 func TestPageOnRevertOnly(t *testing.T) {
-	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
 	var pages []Event
 	r.Page = func(e Event) { pages = append(pages, e) }
 	r.Next(0)
@@ -124,7 +124,7 @@ func TestPageOnRevertOnly(t *testing.T) {
 }
 
 func TestFreezeHoldsButStillReverts(t *testing.T) {
-	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
 	r.Freezes = []Freeze{{5 * time.Minute, 3 * time.Hour}}
 	r.Next(0)
 	ok := Sample{New: map[string]Counts{"5xx": {20000, 10}}, Old: map[string]Counts{"5xx": {20000, 10}}}
@@ -148,7 +148,7 @@ func TestFreezeHoldsButStillReverts(t *testing.T) {
 }
 
 func TestConfirmNeedsRevertsInARow(t *testing.T) {
-	g := DefaultGate
+	g := testGate
 	g.Confirm = 2
 	r := NewRollout(testPlan(t), g, NewFleet([]int{1, 1, 1}, 3, 1))
 	r.Next(0)
@@ -165,3 +165,7 @@ func TestConfirmNeedsRevertsInARow(t *testing.T) {
 		}
 	}
 }
+
+// testGate reverts on the first bad check, so state machine tests don't
+// depend on how DefaultGate is tuned.
+var testGate = Gate{MinRequests: 1000, Z: 3, Confirm: 1}
