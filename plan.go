@@ -28,6 +28,9 @@ type Plan struct {
 	// MaxWait is how long a stage may go without enough traffic to judge
 	// before the rollout stops and asks for a person.
 	MaxWait time.Duration
+	// Window is how far back the gate looks. Zero means since the stage
+	// started.
+	Window time.Duration
 }
 
 // Validate checks the plan can be run.
@@ -57,6 +60,7 @@ func (p Plan) Validate() error {
 type planFile struct {
 	Service string `json:"service"`
 	MaxWait string `json:"max_wait"`
+	Window  string `json:"window"`
 	Stages  []struct {
 		Name  string `json:"name"`
 		Scope string `json:"scope"`
@@ -86,6 +90,13 @@ func ParsePlan(b []byte) (Plan, error) {
 			return Plan{}, fmt.Errorf("plan: max_wait: %w", err)
 		}
 		p.MaxWait = d
+	}
+	if f.Window != "" {
+		d, err := time.ParseDuration(f.Window)
+		if err != nil || d < 0 {
+			return Plan{}, fmt.Errorf("plan: window %q is not a positive duration", f.Window)
+		}
+		p.Window = d
 	}
 	for i, s := range f.Stages {
 		sc, err := ParseScope(s.Scope)

@@ -80,3 +80,28 @@ func TestRolloutFinishes(t *testing.T) {
 		t.Fatalf("state %v", r.State)
 	}
 }
+
+func TestWindowForgetsOldTraffic(t *testing.T) {
+	p := testPlan(t)
+	p.Window = 10 * time.Minute
+	p.Stages[0].Soak = 2 * time.Hour
+	r := NewRollout(p, DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Next(0)
+	ok := Sample{New: map[string]Counts{"5xx": {10000, 3}}, Old: map[string]Counts{"5xx": {10000, 3}}}
+	for m := 1; m <= 90; m++ {
+		r.Observe(time.Duration(m)*time.Minute, ok)
+	}
+	// Late trouble: 0.3% for a few minutes. Since the stage started that is
+	// still well under 0.1% overall; in a 10 minute window it isn't.
+	bad := Sample{New: map[string]Counts{"5xx": {10000, 30}}, Old: ok.Old}
+	var d Decision
+	for m := 91; m <= 94 && d != Revert; m++ {
+		d = r.Observe(time.Duration(m)*time.Minute, bad)
+	}
+	if d != Revert {
+		t.Fatalf("window missed late failures: %v", r.Canary)
+	}
+	if r.Canary["5xx"].Requests != 10*10000 {
+		t.Fatalf("window holds %d requests, want 10 minutes' worth", r.Canary["5xx"].Requests)
+	}
+}

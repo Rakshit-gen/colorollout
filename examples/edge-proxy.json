@@ -1,6 +1,7 @@
 {
   "service": "edge-proxy",
   "max_wait": "1h",
+  "window": "10m",
   "stages": [
     {"name": "one small site", "scope": "dc=t3-eu-04 color=green", "soak": "10m"},
     {"name": "tier 3, one color", "scope": "tier=3 color=green", "soak": "20m"},

@@ -41,9 +41,16 @@ type Rollout struct {
 	State      State
 	Stage      int
 	StageStart time.Duration
-	Canary     map[string]Counts // new version since the stage started
+	Canary     map[string]Counts // new version over the window
 	Control    map[string]Counts // old version over the same time
 	Events     []Event
+
+	recent []stamped
+}
+
+type stamped struct {
+	at time.Duration
+	Sample
 }
 
 // NewRollout prepares a plan for the fleet. Call Next to start.
@@ -60,6 +67,7 @@ func (r *Rollout) Next(now time.Duration) []*Server {
 	r.Stage++
 	r.StageStart = now
 	r.Canary, r.Control = map[string]Counts{}, map[string]Counts{}
+	r.recent = r.recent[:0]
 	st := r.Plan.Stages[r.Stage]
 	servers := r.Fleet.In(st.Scope)
 	r.log(now, "deploy to %s (%d servers), soak %v", st.Scope, len(servers), st.Soak)
@@ -73,12 +81,7 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	if r.State != Running {
 		return Wait
 	}
-	for k, c := range smp.New {
-		r.Canary[k] = r.Canary[k].Add(c)
-	}
-	for k, c := range smp.Old {
-		r.Control[k] = r.Control[k].Add(c)
-	}
+	r.window(now, smp)
 	v := r.Gate.JudgeAll(r.Plan.SLOs, r.Canary, r.Control)
 	elapsed := now - r.StageStart
 	switch {
@@ -98,4 +101,29 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 		r.log(now, "halt: %s after %v; needs a person", v.Reason, elapsed)
 	}
 	return Wait
+}
+
+// window adds smp and recounts Canary and Control over the plan's window,
+// or since the stage started when the plan has none. A window like HMD's
+// rate(...[10m]) shows a problem that starts late in a long soak at full
+// strength instead of diluted by the healthy hours before it.
+func (r *Rollout) window(now time.Duration, smp Sample) {
+	r.recent = append(r.recent, stamped{now, smp})
+	if w := r.Plan.Window; w > 0 {
+		i := 0
+		for i < len(r.recent) && r.recent[i].at <= now-w {
+			i++
+		}
+		r.recent = r.recent[i:]
+	}
+	clear(r.Canary)
+	clear(r.Control)
+	for _, x := range r.recent {
+		for k, c := range x.New {
+			r.Canary[k] = r.Canary[k].Add(c)
+		}
+		for k, c := range x.Old {
+			r.Control[k] = r.Control[k].Add(c)
+		}
+	}
 }

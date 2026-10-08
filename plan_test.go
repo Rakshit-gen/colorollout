@@ -57,3 +57,20 @@ func TestParsePlanRejectsTypos(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestParsePlanWindow(t *testing.T) {
+	b, err := os.ReadFile("examples/edge-proxy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := ParsePlan(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Window != 10*time.Minute {
+		t.Fatalf("window %v", p.Window)
+	}
+	if _, err := ParsePlan([]byte(`{"service":"x","window":"-5m"}`)); err == nil {
+		t.Fatal("negative window accepted")
+	}
+}
