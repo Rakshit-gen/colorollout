@@ -39,6 +39,10 @@ type deployment struct {
 // Now is simulated time since the start.
 func (w *World) Now() time.Duration { return w.now }
 
+// Skip moves the clock to t without simulating traffic, for picking up a
+// journal where its times left off.
+func (w *World) Skip(t time.Duration) { w.now = max(w.now, t) }
+
 // Deploy sends share of each server's requests to the new version. A
 // server already on a bigger share keeps it.
 func (w *World) Deploy(servers []*Server, share float64) {

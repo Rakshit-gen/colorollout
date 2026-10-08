@@ -19,17 +19,31 @@ const Baseline = 30 * time.Minute
 // rollout ends or limit passes. It first watches the fleet for Baseline to
 // learn the old version's failure ratios. Took doesn't count that time.
 func Simulate(p Plan, g Gate, w *World, dt, limit time.Duration) Result {
-	r := NewRollout(p, g, w.Fleet)
-	baseline := map[string]Counts{}
-	for w.Now() < Baseline {
-		for k, c := range w.Step(dt).Old {
-			baseline[k] = baseline[k].Add(c)
+	return Drive(NewRollout(p, g, w.Fleet), w, dt, limit)
+}
+
+// Drive runs r on w for up to limit. A new rollout first watches for
+// Baseline; one resumed from a journal already has its baseline, and gets
+// the fleet put back the way the journal says it was.
+func Drive(r *Rollout, w *World, dt, limit time.Duration) Result {
+	if r.Baseline == nil {
+		baseline := map[string]Counts{}
+		for end := w.Now() + Baseline; w.Now() < end; {
+			for k, c := range w.Step(dt).Old {
+				baseline[k] = baseline[k].Add(c)
+			}
 		}
+		r.SetBaseline(w.Now(), baseline)
 	}
-	r.SetBaseline(w.Now(), baseline)
 	start := w.Now()
 	limit += start
-	w.Deploy(r.Next(w.Now()))
+	if r.Stage < 0 {
+		w.Deploy(r.Next(w.Now()))
+	} else {
+		for s, share := range r.Covered() {
+			w.Deploy([]*Server{s}, share)
+		}
+	}
 	res := Result{Revealed: -1}
 	for r.State == Running && w.Now() < limit {
 		smp := w.Step(dt)
