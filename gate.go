@@ -48,3 +48,19 @@ func (g Gate) Judge(slo SLO, canary, control Counts) Verdict {
 	}
 	return Verdict{Continue, slo.Name + ": healthy"}
 }
+
+// JudgeAll checks every SLO. Any revert wins, then any wait; the stage only
+// continues when every SLO says so. counts are keyed by SLO name.
+func (g Gate) JudgeAll(slos []SLO, canary, control map[string]Counts) Verdict {
+	out := Verdict{Continue, "all SLOs healthy"}
+	for _, slo := range slos {
+		v := g.Judge(slo, canary[slo.Name], control[slo.Name])
+		if v.Decision == Revert {
+			return v
+		}
+		if v.Decision == Wait && out.Decision == Continue {
+			out = v
+		}
+	}
+	return out
+}

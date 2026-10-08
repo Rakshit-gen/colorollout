@@ -22,3 +22,20 @@ func TestGate(t *testing.T) {
 		}
 	}
 }
+
+func TestJudgeAllWorstWins(t *testing.T) {
+	slos := []SLO{{"5xx", 0.001}, {"timeouts", 0.01}}
+	control := map[string]Counts{"5xx": {1e6, 500}, "timeouts": {1e6, 5000}}
+	good := map[string]Counts{"5xx": {1e5, 50}, "timeouts": {1e5, 500}}
+	if v := DefaultGate.JudgeAll(slos, good, control); v.Decision != Continue {
+		t.Fatalf("all good: %v", v)
+	}
+	slowOnly := map[string]Counts{"5xx": {1e5, 50}, "timeouts": {1e5, 2000}}
+	if v := DefaultGate.JudgeAll(slos, slowOnly, control); v.Decision != Revert || v.Reason[:8] != "timeouts" {
+		t.Fatalf("one SLO bad: %v", v)
+	}
+	missing := map[string]Counts{"5xx": {1e5, 50}}
+	if v := DefaultGate.JudgeAll(slos, missing, control); v.Decision != Wait {
+		t.Fatalf("one SLO without data: %v", v)
+	}
+}
