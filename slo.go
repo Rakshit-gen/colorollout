@@ -4,6 +4,6 @@ package colorollout
 // must stay under Objective. Cloudflare's example is 500 errors under 0.1%
 // of requests over ten minutes.
 type SLO struct {
-	Name      string
-	Objective float64 // highest acceptable failure ratio, e.g. 0.001
+	Name      string  `json:"name"`
+	Objective float64 `json:"objective"` // highest acceptable failure ratio, e.g. 0.001
 }

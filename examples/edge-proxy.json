@@ -1,0 +1,14 @@
+{
+  "service": "edge-proxy",
+  "max_wait": "1h",
+  "stages": [
+    {"name": "one small site", "scope": "dc=t3-eu-04 color=green", "soak": "10m"},
+    {"name": "tier 3, one color", "scope": "tier=3 color=green", "soak": "20m"},
+    {"name": "tier 3", "scope": "tier=3", "soak": "20m"},
+    {"name": "tier 2", "scope": "tier=2,3", "soak": "30m"},
+    {"name": "everywhere", "scope": "everywhere", "soak": "30m"}
+  ],
+  "slos": [
+    {"name": "5xx", "objective": 0.001}
+  ]
+}

@@ -1,6 +1,8 @@
 package colorollout
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -49,4 +51,52 @@ func (p Plan) Validate() error {
 		errs = append(errs, fmt.Errorf("last stage covers %q, not everywhere", p.Stages[n-1].Scope))
 	}
 	return errors.Join(errs...)
+}
+
+// planFile is the JSON form of a plan, with scopes and durations as strings.
+type planFile struct {
+	Service string `json:"service"`
+	MaxWait string `json:"max_wait"`
+	Stages  []struct {
+		Name  string `json:"name"`
+		Scope string `json:"scope"`
+		Soak  string `json:"soak"`
+	} `json:"stages"`
+	SLOs []SLO `json:"slos"`
+}
+
+// ParsePlan reads a plan from JSON:
+//
+//	{"service": "edge-proxy", "max_wait": "1h",
+//	 "stages": [{"name": "canary", "scope": "dc=t3-eu-01", "soak": "10m"}, ...],
+//	 "slos": [{"name": "5xx", "objective": 0.001}]}
+//
+// Unknown fields are an error, so a typo can't silently drop a safeguard.
+func ParsePlan(b []byte) (Plan, error) {
+	var f planFile
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&f); err != nil {
+		return Plan{}, fmt.Errorf("plan: %w", err)
+	}
+	p := Plan{Service: f.Service, SLOs: f.SLOs}
+	if f.MaxWait != "" {
+		d, err := time.ParseDuration(f.MaxWait)
+		if err != nil {
+			return Plan{}, fmt.Errorf("plan: max_wait: %w", err)
+		}
+		p.MaxWait = d
+	}
+	for i, s := range f.Stages {
+		sc, err := ParseScope(s.Scope)
+		if err != nil {
+			return Plan{}, fmt.Errorf("plan: stage %d: %w", i+1, err)
+		}
+		soak, err := time.ParseDuration(s.Soak)
+		if err != nil {
+			return Plan{}, fmt.Errorf("plan: stage %d: soak: %w", i+1, err)
+		}
+		p.Stages = append(p.Stages, Stage{Name: s.Name, Scope: sc, Soak: soak})
+	}
+	return p, p.Validate()
 }

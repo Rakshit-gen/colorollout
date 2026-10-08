@@ -1,6 +1,7 @@
 package colorollout
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,5 +30,30 @@ func TestValidate(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %q", err, want)
 		}
+	}
+}
+
+func TestParsePlanExample(t *testing.T) {
+	b, err := os.ReadFile("examples/edge-proxy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := ParsePlan(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Stages) != 5 || p.Stages[1].Soak != 20*time.Minute || p.MaxWait != time.Hour || p.SLOs[0].Objective != 0.001 {
+		t.Fatalf("%+v", p)
+	}
+	f := NewFleet([]int{10, 20, 30}, 12, 1)
+	if n := len(f.In(p.Stages[0].Scope)); n != 4 {
+		t.Fatalf("first stage has %d servers", n)
+	}
+}
+
+func TestParsePlanRejectsTypos(t *testing.T) {
+	_, err := ParsePlan([]byte(`{"service": "x", "stages": [], "slo": []}`))
+	if err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("got %v", err)
 	}
 }
