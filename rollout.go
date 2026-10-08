@@ -23,7 +23,7 @@ func (s State) String() string {
 type Event struct {
 	At    time.Duration `json:"at"`
 	Stage int           `json:"stage"`
-	Kind  string        `json:"kind"` // deploy, healthy, revert, halt or done
+	Kind  string        `json:"kind"` // deploy, healthy, revert, halt, done or resume
 	What  string        `json:"what"`
 }
 
@@ -49,6 +49,9 @@ type Rollout struct {
 	// Page, if set, is called when the rollout reverts or halts. The revert
 	// has already happened by then; the page is so someone looks at why.
 	Page func(Event)
+	// Journal, if set, gets every event before the rollout acts on it. If
+	// it can't be written the rollout halts rather than go on unrecorded.
+	Journal *Journal
 
 	recent []stamped
 }
@@ -64,7 +67,16 @@ func NewRollout(p Plan, g Gate, f *Fleet) *Rollout {
 }
 
 func (r *Rollout) log(at time.Duration, kind, format string, args ...any) {
-	r.Events = append(r.Events, Event{at, r.Stage, kind, fmt.Sprintf(format, args...)})
+	e := Event{at, r.Stage, kind, fmt.Sprintf(format, args...)}
+	r.Events = append(r.Events, e)
+	if r.Journal == nil {
+		return
+	}
+	if err := r.Journal.Append(e); err != nil && r.State == Running {
+		r.State = Halted
+		r.Events = append(r.Events, Event{at, r.Stage, "halt", "journal: " + err.Error()})
+		r.page()
+	}
 }
 
 func (r *Rollout) page() {
@@ -83,6 +95,9 @@ func (r *Rollout) Next(now time.Duration) ([]*Server, float64) {
 	st := r.Plan.Stages[r.Stage]
 	servers := r.Fleet.In(st.Scope)
 	r.log(now, "deploy", "deploy to %s (%d servers), soak %v", st.Scope, len(servers), st.Soak)
+	if r.State != Running {
+		return nil, 0
+	}
 	return servers, st.Scope.Share()
 }
 
