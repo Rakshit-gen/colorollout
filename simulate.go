@@ -7,7 +7,7 @@ type Result struct {
 	State    State
 	Took     time.Duration
 	Extra    float64 // failed requests the release caused
-	Peak     int     // most servers on the new version at once
+	Peak     float64 // largest share of requests on the new version in a step
 	Revealed int     // stage where it was reverted or halted, -1 if done
 	Events   []Event
 }
@@ -20,7 +20,7 @@ func Simulate(p Plan, g Gate, w *World, dt, limit time.Duration) Result {
 	res := Result{Revealed: -1}
 	for r.State == Running && w.Now() < limit {
 		smp := w.Step(dt)
-		res.Peak = max(res.Peak, w.OnNew())
+		res.Peak = max(res.Peak, newShare(smp))
 		switch r.Observe(w.Now(), smp) {
 		case Revert:
 			w.Revert()
@@ -35,4 +35,13 @@ func Simulate(p Plan, g Gate, w *World, dt, limit time.Duration) Result {
 	}
 	res.State, res.Took, res.Extra, res.Events = r.State, w.Now(), w.Extra, r.Events
 	return res
+}
+
+func newShare(smp Sample) float64 {
+	for k, n := range smp.New {
+		if all := n.Requests + smp.Old[k].Requests; all > 0 {
+			return float64(n.Requests) / float64(all)
+		}
+	}
+	return 0
 }

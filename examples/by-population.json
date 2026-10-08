@@ -1,0 +1,14 @@
+{
+  "service": "by-population",
+  "max_wait": "1h",
+  "window": "10m",
+  "stages": [
+    {"name": "employees", "scope": "traffic=employees", "soak": "20m"},
+    {"name": "free users", "scope": "traffic=free", "soak": "20m"},
+    {"name": "half of everyone", "scope": "traffic=50%", "soak": "20m"},
+    {"name": "everyone", "scope": "everywhere", "soak": "30m"}
+  ],
+  "slos": [
+    {"name": "5xx", "objective": 0.001}
+  ]
+}

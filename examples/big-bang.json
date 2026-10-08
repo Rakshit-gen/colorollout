@@ -1,0 +1,11 @@
+{
+  "service": "big-bang",
+  "max_wait": "1h",
+  "window": "10m",
+  "stages": [
+    {"name": "everywhere", "scope": "everywhere", "soak": "30m"}
+  ],
+  "slos": [
+    {"name": "5xx", "objective": 0.001}
+  ]
+}
