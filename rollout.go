@@ -65,7 +65,7 @@ type Rollout struct {
 	held    bool
 	strikes int // revert verdicts in a row
 
-	recent []stamped
+	recent []stamped // samples still inside the window
 }
 
 // Freeze is a span of time when rollouts hold where they are.
@@ -176,28 +176,29 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	return Wait
 }
 
-// window adds smp and recounts Canary and Control over the plan's window,
-// or since the stage started when the plan has none. A window like HMD's
+// window adds smp to Canary and Control and takes out samples that have
+// left the plan's window, or keeps everything since the stage started when
+// the plan has none. A window like HMD's
 // rate(...[10m]) shows a problem that starts late in a long soak at full
 // strength instead of diluted by the healthy hours before it.
 func (r *Rollout) window(now time.Duration, smp Sample) {
 	r.recent = append(r.recent, stamped{now, smp})
+	addAll(r.Canary, smp.New, Counts.Add)
+	addAll(r.Control, smp.Old, Counts.Add)
 	if w := r.Plan.Window; w > 0 {
 		i := 0
 		for i < len(r.recent) && r.recent[i].at <= now-w {
+			addAll(r.Canary, r.recent[i].New, Counts.Sub)
+			addAll(r.Control, r.recent[i].Old, Counts.Sub)
 			i++
 		}
 		r.recent = r.recent[i:]
 	}
-	clear(r.Canary)
-	clear(r.Control)
-	for _, x := range r.recent {
-		for k, c := range x.New {
-			r.Canary[k] = r.Canary[k].Add(c)
-		}
-		for k, c := range x.Old {
-			r.Control[k] = r.Control[k].Add(c)
-		}
+}
+
+func addAll(into, from map[string]Counts, op func(Counts, Counts) Counts) {
+	for k, c := range from {
+		into[k] = op(into[k], c)
 	}
 }
 

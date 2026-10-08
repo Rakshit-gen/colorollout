@@ -13,6 +13,11 @@ func (c Counts) Add(o Counts) Counts {
 	return Counts{c.Requests + o.Requests, c.Failures + o.Failures}
 }
 
+// Sub returns c minus o.
+func (c Counts) Sub(o Counts) Counts {
+	return Counts{c.Requests - o.Requests, c.Failures - o.Failures}
+}
+
 // Ratio is the failure ratio, 0 with no requests.
 func (c Counts) Ratio() float64 {
 	if c.Requests == 0 {
