@@ -122,3 +122,27 @@ func TestPageOnRevertOnly(t *testing.T) {
 		t.Fatalf("pages: %v", pages)
 	}
 }
+
+func TestFreezeHoldsButStillReverts(t *testing.T) {
+	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Freezes = []Freeze{{5 * time.Minute, 3 * time.Hour}}
+	r.Next(0)
+	ok := Sample{New: map[string]Counts{"5xx": {20000, 10}}, Old: map[string]Counts{"5xx": {20000, 10}}}
+	for m := 10; m < 180; m += 10 {
+		if d := r.Observe(time.Duration(m)*time.Minute, ok); d != Wait {
+			t.Fatalf("minute %d in a freeze: %v", m, d)
+		}
+	}
+	if r.State != Running {
+		t.Fatalf("freeze longer than max wait ended the rollout: %v", r.State)
+	}
+	if d := r.Observe(3*time.Hour, ok); d != Continue {
+		t.Fatalf("after the freeze: %v", d)
+	}
+	r.Next(3 * time.Hour)
+	r.Freezes = []Freeze{{0, 24 * time.Hour}}
+	bad := Sample{New: map[string]Counts{"5xx": {20000, 400}}, Old: ok.Old}
+	if d := r.Observe(3*time.Hour+time.Minute, bad); d != Revert {
+		t.Fatalf("bad stage in a freeze: %v", d)
+	}
+}

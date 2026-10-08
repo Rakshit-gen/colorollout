@@ -53,7 +53,24 @@ type Rollout struct {
 	// it can't be written the rollout halts rather than go on unrecorded.
 	Journal *Journal
 
+	// Freezes are times when no new stage may start, such as a big event
+	// or a holiday. A frozen rollout keeps watching and can still revert.
+	Freezes []Freeze
+	held    bool
+
 	recent []stamped
+}
+
+// Freeze is a span of time when rollouts hold where they are.
+type Freeze struct{ From, To time.Duration }
+
+func (r *Rollout) frozen(now time.Duration) bool {
+	for _, f := range r.Freezes {
+		if now >= f.From && now < f.To {
+			return true
+		}
+	}
+	return false
 }
 
 type stamped struct {
@@ -118,13 +135,21 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 		r.page()
 		return Revert
 	case v.Decision == Continue && elapsed >= r.Plan.Stages[r.Stage].Soak:
+		if r.Stage < len(r.Plan.Stages)-1 && r.frozen(now) {
+			if !r.held {
+				r.log(now, "hold", "healthy, but in a change freeze")
+				r.held = true
+			}
+			return Wait
+		}
+		r.held = false
 		r.log(now, "healthy", "healthy after %v", elapsed)
 		if r.Stage == len(r.Plan.Stages)-1 {
 			r.State = Done
 			r.log(now, "done", "every stage passed")
 		}
 		return Continue
-	case v.Decision == Wait && r.Plan.MaxWait > 0 && elapsed >= r.Plan.MaxWait:
+	case v.Decision == Wait && r.Plan.MaxWait > 0 && elapsed >= r.Plan.MaxWait && !r.held:
 		r.State = Halted
 		r.log(now, "halt", "%s after %v; needs a person", v.Reason, elapsed)
 		r.page()
