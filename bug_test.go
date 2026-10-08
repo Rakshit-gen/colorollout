@@ -51,3 +51,17 @@ func TestSlowBurn(t *testing.T) {
 		}
 	}
 }
+
+func TestUnderLoad(t *testing.T) {
+	f := NewFleet([]int{2, 2, 2}, 6, 3)
+	b := UnderLoad{SLO: "5xx", Above: 300, Factor: 20}
+	hit := map[int]int{}
+	for _, s := range f.Servers {
+		if b.Ratio("5xx", s, 0.001, 0) > 0.001 {
+			hit[s.DC.Tier]++
+		}
+	}
+	if hit[1] == 0 || hit[2] != 0 || hit[3] != 0 {
+		t.Fatalf("hits by tier: %v, want only tier 1", hit)
+	}
+}

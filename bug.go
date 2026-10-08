@@ -75,3 +75,23 @@ func (b SlowBurn) Ratio(slo string, _ *Server, base float64, running time.Durati
 func (b SlowBurn) String() string {
 	return fmt.Sprintf("%s slow burn after %v, up to x%g", b.SLO, b.Delay, b.Factor)
 }
+
+// UnderLoad only fails on busy servers: those carrying more than Above
+// requests per second. Small data centers never see it, so a release that
+// only soaks there looks fine.
+type UnderLoad struct {
+	SLO    string
+	Above  float64
+	Factor float64
+}
+
+func (b UnderLoad) Ratio(slo string, s *Server, base float64, _ time.Duration) float64 {
+	if slo != b.SLO || s.Load <= b.Above {
+		return base
+	}
+	return min(1, base*b.Factor)
+}
+
+func (b UnderLoad) String() string {
+	return fmt.Sprintf("%s x%g above %g rps", b.SLO, b.Factor, b.Above)
+}
