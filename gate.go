@@ -21,10 +21,15 @@ func (d Decision) String() string {
 type Gate struct {
 	MinRequests int64   // requests on the new version before judging at all
 	Z           float64 // standard errors needed to call a version bad
+	// Confirm is how many checks in a row must say revert before the
+	// rollout does. A gate that looks every minute for hours runs hundreds
+	// of tests, and at three standard errors some good releases will cross
+	// the line once by chance.
+	Confirm int
 }
 
 // DefaultGate needs a thousand requests and three standard errors.
-var DefaultGate = Gate{MinRequests: 1000, Z: 3}
+var DefaultGate = Gate{MinRequests: 1000, Z: 3, Confirm: 1}
 
 // Verdict is a decision with the reason behind it.
 type Verdict struct {

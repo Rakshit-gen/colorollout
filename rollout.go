@@ -57,6 +57,7 @@ type Rollout struct {
 	// or a holiday. A frozen rollout keeps watching and can still revert.
 	Freezes []Freeze
 	held    bool
+	strikes int // revert verdicts in a row
 
 	recent []stamped
 }
@@ -128,6 +129,14 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	r.window(now, smp)
 	v := r.Gate.JudgeAll(r.Plan.SLOs, r.Canary, r.Control)
 	elapsed := now - r.StageStart
+	if v.Decision == Revert {
+		r.strikes++
+		if r.strikes < r.Gate.Confirm {
+			return Wait
+		}
+	} else {
+		r.strikes = 0
+	}
 	switch {
 	case v.Decision == Revert:
 		r.State = RolledBack

@@ -146,3 +146,22 @@ func TestFreezeHoldsButStillReverts(t *testing.T) {
 		t.Fatalf("bad stage in a freeze: %v", d)
 	}
 }
+
+func TestConfirmNeedsRevertsInARow(t *testing.T) {
+	g := DefaultGate
+	g.Confirm = 2
+	r := NewRollout(testPlan(t), g, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Next(0)
+	ok := Sample{New: map[string]Counts{"5xx": {20000, 10}}, Old: map[string]Counts{"5xx": {20000, 10}}}
+	bad := Sample{New: map[string]Counts{"5xx": {20000, 400}}, Old: ok.Old}
+	r.Plan.Window = time.Minute // judge each minute on its own
+	steps := []struct {
+		s    Sample
+		want Decision
+	}{{bad, Wait}, {ok, Wait}, {bad, Wait}, {bad, Revert}}
+	for i, st := range steps {
+		if d := r.Observe(time.Duration(i+1)*time.Minute, st.s); d != st.want {
+			t.Fatalf("check %d: %v, want %v", i+1, d, st.want)
+		}
+	}
+}
