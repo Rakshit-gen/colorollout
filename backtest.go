@@ -6,6 +6,7 @@ import (
 
 // Incident is a kind of bad release to replay against a plan.
 type Incident struct {
+	Key  string // short name for the command line
 	Name string
 	Bug  Bug
 }
@@ -14,14 +15,14 @@ type Incident struct {
 // after the kinds of failures staged rollouts exist for; the last one is a
 // good release, to count false alarms.
 var Incidents = []Incident{
-	{"errors x10 everywhere", Raise{SLO: "5xx", Factor: 10}},
-	{"errors x3 everywhere", Raise{SLO: "5xx", Factor: 3}},
-	{"errors x1.5 everywhere", Raise{SLO: "5xx", Factor: 1.5}},
-	{"errors x10 on tier 1 only", Raise{SLO: "5xx", Factor: 10, Where: Scope{Tiers: []int{1}}}},
-	{"crash 20%", Crash{Share: 0.2}},
-	{"slow burn after 40m", SlowBurn{SLO: "5xx", Delay: 40 * time.Minute, Ramp: 10 * time.Minute, Factor: 20}},
-	{"errors x10 above 300 rps", UnderLoad{SLO: "5xx", Above: 300, Factor: 10}},
-	{"good release", NoBug{}},
+	{"x10", "errors x10 everywhere", Raise{SLO: "5xx", Factor: 10}},
+	{"x3", "errors x3 everywhere", Raise{SLO: "5xx", Factor: 3}},
+	{"x1.5", "errors x1.5 everywhere", Raise{SLO: "5xx", Factor: 1.5}},
+	{"tier1", "errors x10 on tier 1 only", Raise{SLO: "5xx", Factor: 10, Where: Scope{Tiers: []int{1}}}},
+	{"crash", "crash 20%", Crash{Share: 0.2}},
+	{"slowburn", "slow burn after 40m", SlowBurn{SLO: "5xx", Delay: 40 * time.Minute, Ramp: 10 * time.Minute, Factor: 20}},
+	{"load", "errors x10 above 300 rps", UnderLoad{SLO: "5xx", Above: 300, Factor: 10}},
+	{"good", "good release", NoBug{}},
 }
 
 // Outcome is one plan against one incident, over several seeds.
@@ -64,4 +65,14 @@ func Backtest(plans []Plan, incidents []Incident, f *Fleet, base map[string]floa
 		}
 	}
 	return out
+}
+
+// FindIncident returns the incident with the given key.
+func FindIncident(key string) (Incident, bool) {
+	for _, inc := range Incidents {
+		if inc.Key == key {
+			return inc, true
+		}
+	}
+	return Incident{}, false
 }

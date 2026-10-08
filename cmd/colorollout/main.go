@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Rakshit-gen/colorollout"
 )
@@ -19,6 +20,8 @@ func main() {
 	switch os.Args[1] {
 	case "validate":
 		validate(os.Args[2:])
+	case "run":
+		run(os.Args[2:])
 	default:
 		usage()
 	}
@@ -26,6 +29,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: colorollout validate [flags] PLAN...")
+	fmt.Fprintln(os.Stderr, "       colorollout run [flags] PLAN")
 	os.Exit(2)
 }
 
@@ -95,4 +99,50 @@ func validate(args []string) {
 		}
 		fmt.Printf("  at least %.0f minutes if every stage passes first time\n", soak)
 	}
+}
+
+func incident(key string) colorollout.Incident {
+	inc, ok := colorollout.FindIncident(key)
+	if !ok {
+		var keys []string
+		for _, i := range colorollout.Incidents {
+			keys = append(keys, i.Key)
+		}
+		fatalf("unknown incident %q; have %s", key, strings.Join(keys, ", "))
+	}
+	return inc
+}
+
+func run(args []string) {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	fleet := fleetFlags(fs)
+	inc := fs.String("incident", "good", "what the release does: x10, x3, x1.5, tier1, crash, slowburn, load or good")
+	base := fs.Float64("base", 0.0003, "the old version's failure ratio")
+	seed := fs.Uint64("seed", 1, "traffic seed")
+	fs.Parse(args)
+	if fs.NArg() != 1 {
+		usage()
+	}
+	p := loadPlan(fs.Arg(0))
+	i := incident(*inc)
+	w := colorollout.NewWorld(fleet(), baseRatios(p, *base), i.Bug, *seed)
+	res := colorollout.Simulate(p, colorollout.DefaultGate, w, time.Minute, 48*time.Hour)
+	fmt.Printf("%s, release with %s\n\n", p.Service, i.Name)
+	for _, e := range res.Events {
+		if e.Kind != "baseline" {
+			e.At -= colorollout.Baseline // from the start of the release
+			fmt.Println(e)
+		}
+	}
+	fmt.Printf("\n%s after %v; up to %.1f%% of traffic got it; %.0f extra failed requests\n",
+		res.State, res.Took, 100*res.Peak, res.Extra)
+}
+
+// baseRatios gives every SLO in the plan the same old-version ratio.
+func baseRatios(p colorollout.Plan, ratio float64) map[string]float64 {
+	m := map[string]float64{}
+	for _, s := range p.SLOs {
+		m[s.Name] = ratio
+	}
+	return m
 }
