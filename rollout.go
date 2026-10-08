@@ -45,6 +45,11 @@ type Rollout struct {
 	Canary     map[string]Counts // new version over the window
 	Control    map[string]Counts // old version over the same time
 	Events     []Event
+	// Baseline is the old version's traffic from before the rollout began.
+	// The gate compares against it when there's too little old-version
+	// traffic left to use as a control, as in the last stage, when
+	// everything runs the new version.
+	Baseline map[string]Counts
 
 	// Page, if set, is called when the rollout reverts or halts. The revert
 	// has already happened by then; the page is so someone looks at why.
@@ -127,7 +132,11 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 		return Wait
 	}
 	r.window(now, smp)
-	v := r.Gate.JudgeAll(r.Plan.SLOs, r.Canary, r.Control)
+	control := r.Control
+	if r.Baseline != nil && !r.hasControl() {
+		control = r.Baseline
+	}
+	v := r.Gate.JudgeAll(r.Plan.SLOs, r.Canary, control)
 	elapsed := now - r.StageStart
 	if v.Decision == Revert {
 		r.strikes++
@@ -207,4 +216,13 @@ func (r *Rollout) Covered() map[*Server]float64 {
 		}
 	}
 	return out
+}
+
+func (r *Rollout) hasControl() bool {
+	for _, slo := range r.Plan.SLOs {
+		if r.Control[slo.Name].Requests < r.Gate.MinRequests {
+			return false
+		}
+	}
+	return true
 }

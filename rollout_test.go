@@ -169,3 +169,18 @@ func TestConfirmNeedsRevertsInARow(t *testing.T) {
 // testGate reverts on the first bad check, so state machine tests don't
 // depend on how DefaultGate is tuned.
 var testGate = Gate{MinRequests: 1000, Z: 3, Confirm: 1}
+
+func TestBaselineStandsInForMissingControl(t *testing.T) {
+	r := NewRollout(testPlan(t), testGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	r.Next(0)
+	// Everything on the new version, 0.06% failing: under the 0.1% SLO,
+	// but double what the old version did before the release.
+	all := Sample{New: map[string]Counts{"5xx": {1e6, 600}}, Old: map[string]Counts{}}
+	if d := r.Observe(time.Minute, all); d == Revert {
+		t.Fatal("reverted with nothing to compare against")
+	}
+	r.Baseline = map[string]Counts{"5xx": {3e6, 900}}
+	if d := r.Observe(2*time.Minute, all); d != Revert {
+		t.Fatalf("baseline ignored: %v", d)
+	}
+}
