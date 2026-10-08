@@ -122,20 +122,48 @@ func run(args []string) {
 	inc := fs.String("incident", "good", "what the release does: x10, x3, x1.5, tier1, crash, slowburn, load or good")
 	base := fs.Float64("base", 0.0003, "the old version's failure ratio")
 	seed := fs.Uint64("seed", 1, "traffic seed")
+	journal := fs.String("journal", "", "keep the rollout's journal here and resume from it if it exists")
+	stop := fs.Duration("stop-after", 48*time.Hour, "stop this long into the release, as if the process died")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		usage()
 	}
 	p := loadPlan(fs.Arg(0))
 	i := incident(*inc)
-	w := colorollout.NewWorld(fleet(), baseRatios(p, *base), i.Bug, *seed)
-	res := colorollout.Simulate(p, colorollout.DefaultGate, w, time.Minute, 48*time.Hour)
+	f := fleet()
+	w := colorollout.NewWorld(f, baseRatios(p, *base), i.Bug, *seed)
+	r := colorollout.NewRollout(p, colorollout.DefaultGate, f)
+	r.Page = func(e colorollout.Event) { fmt.Printf("PAGE %s: %s\n", p.Service, e.What) }
+	shown := 0
+	if *journal != "" {
+		j, events, err := colorollout.OpenJournal(*journal)
+		if err != nil {
+			fatalf("%v", err)
+		}
+		defer j.Close()
+		if len(events) > 0 {
+			w.Skip(events[len(events)-1].At)
+			r = colorollout.Resume(p, colorollout.DefaultGate, f, events, w.Now())
+			shown = len(events)
+			r.Page = func(e colorollout.Event) { fmt.Printf("PAGE %s: %s\n", p.Service, e.What) }
+			fmt.Printf("resuming from %s: stage %d, %v\n", *journal, r.Stage+1, r.State)
+		}
+		r.Journal = j
+	}
+	if r.State != colorollout.Running {
+		return
+	}
+	res := colorollout.Drive(r, w, time.Minute, *stop)
 	fmt.Printf("%s, release with %s\n\n", p.Service, i.Name)
-	for _, e := range res.Events {
+	for _, e := range res.Events[shown:] {
 		if e.Kind != "baseline" {
 			e.At -= colorollout.Baseline // from the start of the release
 			fmt.Println(e)
 		}
+	}
+	if res.State == colorollout.Running {
+		fmt.Printf("\nstopped after %v, still at stage %d\n", res.Took, r.Stage+1)
+		return
 	}
 	fmt.Printf("\n%s after %v; up to %.1f%% of traffic got it; %.0f extra failed requests\n",
 		res.State, res.Took, 100*res.Peak, res.Extra)
