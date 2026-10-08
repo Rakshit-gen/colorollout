@@ -93,7 +93,7 @@ func TestTrafficScopes(t *testing.T) {
 	if sc, _ := ParseScope("traffic=100%"); sc.String() != "everywhere" {
 		t.Errorf("100%% of traffic everywhere prints as %q", sc)
 	}
-	for _, bad := range []string{"traffic=paid", "traffic=0%", "traffic=150%", "traffic=10"} {
+	for _, bad := range []string{"traffic=paid", "traffic=0%", "traffic=150%", "traffic=10", "traffic=NaN%", "region=eu,,na"} {
 		if _, err := ParseScope(bad); err == nil {
 			t.Errorf("%s accepted", bad)
 		}

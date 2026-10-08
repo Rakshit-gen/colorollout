@@ -85,6 +85,9 @@ func ParseScope(s string) (Scope, error) {
 			return sc, fmt.Errorf("scope %q: want key=value, got %q", s, f)
 		}
 		vals := strings.Split(v, ",")
+		if slices.Contains(vals, "") {
+			return sc, fmt.Errorf("scope %q: empty value in %q", s, f)
+		}
 		switch k {
 		case "tier":
 			for _, x := range vals {
@@ -108,7 +111,7 @@ func ParseScope(s string) (Scope, error) {
 		case "traffic":
 			if _, ok := populations[v]; !ok {
 				pct, err := strconv.ParseFloat(strings.TrimSuffix(v, "%"), 64)
-				if !strings.HasSuffix(v, "%") || err != nil || pct <= 0 || pct > 100 {
+				if !strings.HasSuffix(v, "%") || err != nil || !(pct > 0 && pct <= 100) { // NaN fails too
 					return sc, fmt.Errorf("scope %q: traffic must be employees, free or a percentage, got %q", s, v)
 				}
 			}
