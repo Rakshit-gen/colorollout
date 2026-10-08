@@ -127,6 +127,7 @@ func run(args []string) {
 	seed := fs.Uint64("seed", 1, "traffic seed")
 	journal := fs.String("journal", "", "keep the rollout's journal here and resume from it if it exists")
 	stop := fs.Duration("stop-after", 48*time.Hour, "stop this long into the release, as if the process died")
+	freeze := fs.String("freeze", "", "a change freeze as FROM-TO into the release, such as 20m-2h")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		usage()
@@ -155,6 +156,16 @@ func run(args []string) {
 	}
 	if r.State != colorollout.Running {
 		return
+	}
+	if *freeze != "" {
+		from, to, ok := strings.Cut(*freeze, "-")
+		a, err1 := time.ParseDuration(from)
+		b, err2 := time.ParseDuration(to)
+		if !ok || err1 != nil || err2 != nil || b <= a {
+			fatalf("-freeze: want FROM-TO such as 20m-2h, got %q", *freeze)
+		}
+		// Event times count the baseline; the flag counts from the release.
+		r.Freezes = []colorollout.Freeze{{From: a + colorollout.Baseline, To: b + colorollout.Baseline}}
 	}
 	res := colorollout.Drive(r, w, time.Minute, *stop)
 	fmt.Printf("%s, release with %s\n\n", p.Service, i.Name)
