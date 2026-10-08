@@ -1,6 +1,7 @@
 package colorollout
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,5 +104,22 @@ func TestWindowForgetsOldTraffic(t *testing.T) {
 	}
 	if r.Canary["5xx"].Requests != 10*10000 {
 		t.Fatalf("window holds %d requests, want 10 minutes' worth", r.Canary["5xx"].Requests)
+	}
+}
+
+func TestPageOnRevertOnly(t *testing.T) {
+	r := NewRollout(testPlan(t), DefaultGate, NewFleet([]int{1, 1, 1}, 3, 1))
+	var pages []Event
+	r.Page = func(e Event) { pages = append(pages, e) }
+	r.Next(0)
+	ok := Sample{New: map[string]Counts{"5xx": {20000, 10}}, Old: map[string]Counts{"5xx": {20000, 10}}}
+	r.Observe(10*time.Minute, ok)
+	if len(pages) != 0 {
+		t.Fatal("paged for a healthy stage")
+	}
+	r.Next(10 * time.Minute)
+	r.Observe(11*time.Minute, Sample{New: map[string]Counts{"5xx": {20000, 400}}, Old: ok.Old})
+	if len(pages) != 1 || !strings.HasPrefix(pages[0].What, "revert") {
+		t.Fatalf("pages: %v", pages)
 	}
 }

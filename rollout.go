@@ -45,6 +45,10 @@ type Rollout struct {
 	Control    map[string]Counts // old version over the same time
 	Events     []Event
 
+	// Page, if set, is called when the rollout reverts or halts. The revert
+	// has already happened by then; the page is so someone looks at why.
+	Page func(Event)
+
 	recent []stamped
 }
 
@@ -60,6 +64,12 @@ func NewRollout(p Plan, g Gate, f *Fleet) *Rollout {
 
 func (r *Rollout) log(at time.Duration, format string, args ...any) {
 	r.Events = append(r.Events, Event{at, r.Stage, fmt.Sprintf(format, args...)})
+}
+
+func (r *Rollout) page() {
+	if r.Page != nil {
+		r.Page(r.Events[len(r.Events)-1])
+	}
 }
 
 // Next moves to the next stage and returns the servers it covers and the
@@ -89,6 +99,7 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	case v.Decision == Revert:
 		r.State = RolledBack
 		r.log(now, "revert: %s", v.Reason)
+		r.page()
 		return Revert
 	case v.Decision == Continue && elapsed >= r.Plan.Stages[r.Stage].Soak:
 		r.log(now, "healthy after %v", elapsed)
@@ -100,6 +111,7 @@ func (r *Rollout) Observe(now time.Duration, smp Sample) Decision {
 	case v.Decision == Wait && r.Plan.MaxWait > 0 && elapsed >= r.Plan.MaxWait:
 		r.State = Halted
 		r.log(now, "halt: %s after %v; needs a person", v.Reason, elapsed)
+		r.page()
 	}
 	return Wait
 }
