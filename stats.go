@@ -47,7 +47,7 @@ func WorseThan(canary, control Counts) float64 {
 		return 0
 	}
 	pooled := float64(canary.Failures+control.Failures) / float64(canary.Requests+control.Requests)
-	if pooled == 0 {
+	if pooled == 0 || pooled == 1 {
 		return 0
 	}
 	se := math.Sqrt(pooled * (1 - pooled) * (1/float64(canary.Requests) + 1/float64(control.Requests)))

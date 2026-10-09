@@ -33,4 +33,7 @@ func TestWorseThan(t *testing.T) {
 	if WorseThan(Counts{50000, 25}, Counts{500000, 500}) >= 0 {
 		t.Fatal("better canary scored as worse")
 	}
+	if z := WorseThan(Counts{100, 100}, Counts{1000, 1000}); z != 0 {
+		t.Fatalf("both versions failing every request: z = %v", z)
+	}
 }
