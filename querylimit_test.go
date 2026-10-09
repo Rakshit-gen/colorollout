@@ -45,3 +45,14 @@ func TestQueryLimitBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestQueryLimitLetsOneThrough(t *testing.T) {
+	q := NewQueryLimit(0, 0)
+	if !q.TryAcquire() {
+		t.Fatal("a limit of 0 blocks every query forever")
+	}
+	q.Release(false)
+	if q.Limit() != 1 {
+		t.Fatalf("limit fell to %v after a failure", q.Limit())
+	}
+}

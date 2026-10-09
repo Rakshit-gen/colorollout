@@ -23,9 +23,12 @@ type QueryLimit struct {
 	wake     chan struct{}
 }
 
-// NewQueryLimit starts at min.
-func NewQueryLimit(min, max float64) *QueryLimit {
-	return &QueryLimit{Min: min, Max: max, limit: min, wake: make(chan struct{})}
+// NewQueryLimit starts at min. Both bounds are raised to at least 1, since
+// a cap below one query would never let anything through.
+func NewQueryLimit(lo, hi float64) *QueryLimit {
+	lo = max(lo, 1)
+	hi = max(hi, lo)
+	return &QueryLimit{Min: lo, Max: hi, limit: lo, wake: make(chan struct{})}
 }
 
 // Limit is the current cap.
