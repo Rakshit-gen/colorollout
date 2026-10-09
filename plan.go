@@ -45,6 +45,26 @@ func (p Plan) Validate() error {
 	if len(p.SLOs) == 0 {
 		errs = append(errs, errors.New("plan has no SLOs: nothing would ever stop it"))
 	}
+	seen := map[string]bool{}
+	for _, slo := range p.SLOs {
+		switch {
+		case slo.Name == "":
+			errs = append(errs, errors.New("an SLO has no name"))
+		case seen[slo.Name]:
+			// Counts are looked up by name, so two SLOs with one name would
+			// both be judged on the same numbers.
+			errs = append(errs, fmt.Errorf("SLO %q is listed twice", slo.Name))
+		}
+		seen[slo.Name] = true
+		// Outside (0, 1) the check against the objective is skipped, which
+		// would quietly leave only the comparison with the old version.
+		if !(slo.Objective > 0 && slo.Objective < 1) {
+			errs = append(errs, fmt.Errorf("SLO %q: objective %v is not a ratio between 0 and 1", slo.Name, slo.Objective))
+		}
+	}
+	if p.MaxWait < 0 {
+		errs = append(errs, errors.New("max_wait can't be negative"))
+	}
 	for i, s := range p.Stages {
 		if s.Soak <= 0 {
 			errs = append(errs, fmt.Errorf("stage %d (%s): soak must be positive", i+1, s.Name))

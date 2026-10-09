@@ -91,3 +91,20 @@ func TestExamplesParse(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSLOs(t *testing.T) {
+	p := Plan{
+		Service: "edge-proxy",
+		Stages:  []Stage{{Name: "all", Soak: time.Minute}},
+		SLOs:    []SLO{{Name: "5xx", Objective: 0}, {Name: "5xx", Objective: 0.5}, {Objective: 0.1}, {Name: "slow", Objective: 1.5}},
+	}
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("bad SLOs accepted")
+	}
+	for _, want := range []string{`"5xx": objective 0`, "listed twice", "no name", `"slow": objective 1.5`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+}
