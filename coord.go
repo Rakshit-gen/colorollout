@@ -21,8 +21,10 @@ func (c *Coordinator) Begin(r *Rollout) error {
 		c.active = map[string]*Rollout{}
 	}
 	svc := r.Plan.Service
-	if cur, ok := c.active[svc]; ok && cur.State == Running {
-		return fmt.Errorf("%s already has a rollout at stage %d", svc, cur.Stage+1)
+	if cur, ok := c.active[svc]; ok && (cur.State == Running || cur.State == Halted) {
+		// A halted rollout still has its servers on the new version until a
+		// person reverts or finishes it, so it blocks a new one too.
+		return fmt.Errorf("%s already has a rollout %s at stage %d", svc, cur.State, cur.Stage+1)
 	}
 	c.active[svc] = r
 	return nil

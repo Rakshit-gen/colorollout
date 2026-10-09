@@ -18,6 +18,10 @@ func TestOneRolloutPerService(t *testing.T) {
 	if err := c.Begin(NewRollout(other, testGate, f)); err != nil {
 		t.Fatalf("different service blocked: %v", err)
 	}
+	a.State = Halted
+	if err := c.Begin(b); err == nil {
+		t.Fatal("second rollout allowed on top of a halted one")
+	}
 	a.State = RolledBack
 	if c.Active("edge") != nil {
 		t.Fatal("finished rollout still active")
