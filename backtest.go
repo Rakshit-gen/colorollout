@@ -58,9 +58,11 @@ func Backtest(plans []Plan, incidents []Incident, f *Fleet, base map[string]floa
 			if o.Caught > 0 {
 				o.Detect /= time.Duration(o.Caught)
 			}
-			o.Extra /= float64(seeds)
-			o.Peak /= float64(seeds)
-			o.Took /= time.Duration(seeds)
+			if seeds > 0 {
+				o.Extra /= float64(seeds)
+				o.Peak /= float64(seeds)
+				o.Took /= time.Duration(seeds)
+			}
 			out = append(out, o)
 		}
 	}

@@ -39,3 +39,11 @@ func TestBacktestStagedBeatsBigBang(t *testing.T) {
 		}
 	}
 }
+
+func TestBacktestNoSeeds(t *testing.T) {
+	f := NewFleet([]int{10}, 2, 1)
+	out := Backtest([]Plan{loadPlan(t, "examples/big-bang.json")}, Incidents[:1], f, nil, 0)
+	if len(out) != 1 || out[0].Runs != 0 || out[0].Extra != 0 || out[0].Took != 0 {
+		t.Fatalf("%+v", out)
+	}
+}
