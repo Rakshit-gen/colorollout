@@ -134,3 +134,20 @@ func TestBaselineJournalFormat(t *testing.T) {
 		t.Fatalf("journal line:\n%s\nwant\n%s", b, want)
 	}
 }
+
+func TestJournalLineMissingOnlyItsNewline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "j")
+	os.WriteFile(path, []byte(`{"at":1,"stage":0,"kind":"deploy","what":"a"}`), 0o644)
+	j, events, err := OpenJournal(path)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("%v %v", events, err)
+	}
+	if err := j.Append(Event{Kind: "healthy"}); err != nil {
+		t.Fatal(err)
+	}
+	j.Close()
+	_, events, err = OpenJournal(path)
+	if err != nil || len(events) != 2 {
+		t.Fatalf("reopened: %v %v", events, err)
+	}
+}

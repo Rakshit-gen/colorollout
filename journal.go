@@ -55,6 +55,14 @@ func OpenJournal(path string) (*Journal, []Event, error) {
 		f.Close()
 		return nil, nil, err
 	}
+	// A crash can land between an event and its newline. The event is
+	// whole, so it's kept, but the next one must start on a line of its own.
+	if len(b) > 0 && b[len(b)-1] != '\n' {
+		if _, err := f.Write([]byte("\n")); err != nil {
+			f.Close()
+			return nil, nil, err
+		}
+	}
 	return &Journal{f}, events, nil
 }
 
